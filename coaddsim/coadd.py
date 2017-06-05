@@ -29,12 +29,16 @@ class CoaddImages():
             if self.select_obs(obs) is False:
                 continue
 
+            # currently using scale of the first image for the coadd scale
+
             if self.coadd_obs is None:
                 self.coadd_obs = obs
                 self.scale = obs.jacobian.get_scale()
 
             # interplated image, shifted to center of the postage stamp
-            wcs = galsim.JacobianWCS(obs.jacobian.dudcol, obs.jacobian.dudrow, obs.jacobian.dvdcol, obs.jacobian.dvdrow)
+            #wcs = galsim.JacobianWCS(obs.jacobian.dudcol, obs.jacobian.dudrow, obs.jacobian.dvdcol, obs.jacobian.dvdrow)
+            wcs = obs.jacobian.get_galsim_wcs()
+
             image = galsim.InterpolatedImage(galsim.Image(obs.image,wcs=wcs), x_interpolant=self.interp)
             psf = galsim.InterpolatedImage(galsim.Image(obs.psf.image,wcs=wcs), x_interpolant=self.interp)
             sky_shift = -wcs.toWorld(galsim.PositionD(*obs.meta['offset_pixels']))
