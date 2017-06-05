@@ -1,7 +1,4 @@
-import distutils
-from distutils.core import setup, Extension, Command
-import os
-import numpy
+from distutils.core import setup
 
 
 setup(
