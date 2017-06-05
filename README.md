@@ -1,4 +1,3 @@
-# coadd-deblend-sim
 Code for producing coadd images using Galsim
 
 
