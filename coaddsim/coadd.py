@@ -85,7 +85,7 @@ class CoaddImages():
         self.coadd_obs.psf.image = coadd_psf_image.array
 
         weight_map = np.zeros(self.coadd_obs.weight.shape)
-        coadd_var = (coadd_obs.vars*weights*weights).sum()
+        coadd_var = (self.vars*weights*weights).sum()
         weight_map[:,:] = 1./coadd_var
         self.coadd_obs.set_weight(weight_map)
 
