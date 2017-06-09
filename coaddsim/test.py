@@ -12,12 +12,10 @@ try:
 except ImportError:
     pass
 
-_confstring="""
-# multi-epoch
-# joint r50-flux from cosmos
-# designed so min s/n is about 10
-# 6 epochs like recent HSC release
 
+# this is an nsim configuration file
+_confstring="""
+# min s/n approximately 10
 images:
 
     noise: 0.10

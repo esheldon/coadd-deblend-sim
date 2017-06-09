@@ -68,6 +68,7 @@ class CoaddImages():
             # center the jacobian on the canonical center
             self.coadd_obs.jacobian.set_cen(row=crow, col=ccol)
 
+        self.coadd_obs.update_meta_data(self.observations.meta)
         return self.coadd_obs
 
 
