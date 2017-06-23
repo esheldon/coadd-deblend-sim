@@ -16,6 +16,8 @@ class CoaddImages():
         self.observations = observations
         self.target_psf=target_psf
         self.interp = interp
+        # use a nominal sky position
+        self.sky_center = galsim.CelestialCoord(5*galsim.hours, -25*galsim.degrees)
 
         self._add_obs()
 
@@ -91,22 +93,25 @@ class CoaddImages():
                 self.coadd_obs = copy.deepcopy(obs)
                 self.canonical_center = (np.array(self.coadd_obs.image.shape)-1.0)/2.0
 
+            xoffset, yoffset = obs.meta['offset_pixels']
+            offset = galsim.PositionD(xoffset, yoffset)
+            image_center = galsim.PositionD(*self.canonical_center) + offset
+
             # interplated image, shifted to center of the postage stamp
-            wcs = obs.jacobian.get_galsim_wcs()
+             wcs = galsim.TanWCS(affine=galsim.AffineTransform(obs.jacobian.dudcol, obs.jacobian.dudrow,
+                                                               obs.jacobian.dvdcol, obs.jacobian.dvdrow,
+                                                               origin=image_center),
+                                world_origin=self.sky_center)
 
             image = galsim.InterpolatedImage(
                 galsim.Image(obs.image,wcs=wcs),
+                offset=offset,
                 x_interpolant=self.interp,
             )
             psf = galsim.InterpolatedImage(
                 galsim.Image(obs.psf.image,wcs=wcs),
                 x_interpolant=self.interp,
             )
-
-            yoffset, xoffset = obs.meta['offset_pixels']
-            sky_shift = -wcs.toWorld(galsim.PositionD(x=xoffset, y=yoffset))
-
-            image = image.shift(sky_shift)
 
             if self.target_psf is not None:
                 raise NotImplementedError("need to normalize psf correctly so weight maps are consistent")
