@@ -46,7 +46,7 @@ class CoaddImages():
 
         coadd_psf = galsim.Sum([psf*w for psf,w in zip(self.psfs,weights)])
         coadd_psf_image = galsim.Image(psf_nx, psf_ny, wcs=psf_wcs)
-        coadd_psf.drawImage(image=coadd_psf_image)
+        coadd_psf.drawImage(image=coadd_psf_image, method='no_pixel')
 
         coadd_obs.set_image(coadd_image.array)
         coadd_obs.psf.set_image(coadd_psf_image.array)
