@@ -44,7 +44,7 @@ class CoaddImages():
         psf_ny,psf_nx = coadd_obs.psf.image.shape
 
         coadd_image = galsim.Image(nx, ny, wcs=wcs)
-        coadd.drawImage(image=coadd_image)
+        coadd.drawImage(image=coadd_image, method='no_pixel')
 
         coadd_psf = galsim.Sum([psf*w for psf,w in zip(self.psfs,weights)])
         coadd_psf_image = galsim.Image(psf_nx, psf_ny, wcs=psf_wcs)
@@ -98,10 +98,14 @@ class CoaddImages():
             image_center = galsim.PositionD(*self.canonical_center) + offset
 
             # interplated image, shifted to center of the postage stamp
-             wcs = galsim.TanWCS(affine=galsim.AffineTransform(obs.jacobian.dudcol, obs.jacobian.dudrow,
-                                                               obs.jacobian.dvdcol, obs.jacobian.dvdrow,
-                                                               origin=image_center),
+            wcs = galsim.TanWCS(affine=galsim.AffineTransform(obs.jacobian.dudcol, obs.jacobian.dudrow,
+                                                              obs.jacobian.dvdcol, obs.jacobian.dvdrow,
+                                                              origin=image_center),
                                 world_origin=self.sky_center)
+            psf_wcs = galsim.TanWCS(affine=galsim.AffineTransform(obs.jacobian.dudcol, obs.jacobian.dudrow,
+                                                                  obs.jacobian.dvdcol, obs.jacobian.dvdrow,
+                                                                  origin=galsim.PositionD(*self.canonical_center)),
+                                    world_origin=self.sky_center)
 
             image = galsim.InterpolatedImage(
                 galsim.Image(obs.image,wcs=wcs),
@@ -109,7 +113,7 @@ class CoaddImages():
                 x_interpolant=self.interp,
             )
             psf = galsim.InterpolatedImage(
-                galsim.Image(obs.psf.image,wcs=wcs),
+                galsim.Image(obs.psf.image,wcs=psf_wcs),
                 x_interpolant=self.interp,
             )
 
