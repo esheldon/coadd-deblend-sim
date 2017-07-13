@@ -54,10 +54,13 @@ class CoaddImages():
         coadd_obs.psf.set_image(coadd_psf_image.array)
 
         weight_map = np.zeros(self.coadd_obs.weight.shape)
-        coadd_var = (self.vars*weights*weights).sum()
-        weight_map[:,:] = 1./coadd_var
-        self.coadd_obs.set_weight(weight_map)
 
+        coadd_noise = galsim.Sum([image*w for image,w in zip(self.noise_images,weights)])
+        coadd_noise_image = galsim.Image(nx, ny, wcs=wcs)
+        coadd_noise.drawImage(image=coadd_noise_image, method='no_pixel')
+
+        weight_map[:,:] = 1./np.var(coadd_noise_image.array)
+        self.coadd_obs.set_weight(weight_map)
 
         crow, ccol = self.canonical_center
         if find_cen:
@@ -80,6 +83,7 @@ class CoaddImages():
         self.images = []
         self.psfs = []
         self.vars = np.zeros(len(self.observations))
+        self.noise_images = []
 
         self.coadd_obs = None
 
@@ -133,8 +137,18 @@ class CoaddImages():
 
             # assume variance is constant
             var = 1./obs.weight.max()
-
             self.vars[i] = var
+
+            # create noise image given the variance
+            noise = galsim.Image(*obs.image.shape,wcs=wcs)
+            noise.addNoise(galsim.GaussianNoise(sigma=np.sqrt(var)))
+
+            noise_image = galsim.InterpolatedImage(
+                noise,
+                offset=offset,
+                x_interpolant=self.interp,
+            )
+            self.noise_images.append(noise_image)
 
 
     def select_obs(self, observation):
