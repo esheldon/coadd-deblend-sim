@@ -61,11 +61,12 @@ class CoaddImages():
 
         crow, ccol = self.canonical_center
         if find_cen:
-            moments = galsim.hsm.FindAdaptiveMom(galsim.Image(self.coadd_obs.image))
-            centroid = moments.moments_centroid
-
-            shift = galsim.PositionD(ccol, crow) - centroid
-            self.coadd_obs.jacobian.set_cen(col=shift.x, row=shift.y)
+            try:
+                moments = galsim.hsm.FindAdaptiveMom(galsim.Image(self.coadd_obs.image))
+                centroid = moments.moments_centroid
+                self.coadd_obs.jacobian.set_cen(col=centroid.x, row=centroid.y)
+            except:
+                self.coadd_obs.jacobian.set_cen(row=crow, col=ccol)
         else:
             # center the jacobian on the canonical center
             self.coadd_obs.jacobian.set_cen(row=crow, col=ccol)
