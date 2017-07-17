@@ -75,6 +75,7 @@ class CoaddImages():
             self.coadd_obs.jacobian.set_cen(row=crow, col=ccol)
 
         self.coadd_obs.update_meta_data(self.observations.meta)
+        self.coadd_obs.noise = coadd_noise_image.array
         return self.coadd_obs
 
 
