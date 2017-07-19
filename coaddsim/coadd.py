@@ -12,7 +12,7 @@ import copy
 
 class CoaddImages():
 
-    def __init__(self, observations, interp='lanczos3', target_psf=None):
+    def __init__(self, observations, interp='lanczos15', target_psf=None):
         self.observations = observations
         self.target_psf=target_psf
         self.interp = interp
