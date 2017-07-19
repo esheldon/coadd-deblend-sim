@@ -62,17 +62,18 @@ class CoaddImages():
         weight_map[:,:] = 1./np.var(coadd_noise_image.array)
         self.coadd_obs.set_weight(weight_map)
 
-        crow, ccol = self.canonical_center
+        cen = self.canonical_center
         if find_cen:
             try:
                 moments = galsim.hsm.FindAdaptiveMom(galsim.Image(self.coadd_obs.image))
-                centroid = moments.moments_centroid
-                self.coadd_obs.jacobian.set_cen(col=centroid.x, row=centroid.y)
+                cen = moments.moments_centroid
             except:
-                self.coadd_obs.jacobian.set_cen(row=crow, col=ccol)
-        else:
-            # center the jacobian on the canonical center
-            self.coadd_obs.jacobian.set_cen(row=crow, col=ccol)
+                pass
+
+        self.coadd_obs.jacobian.set_cen(
+            row=cen.y,
+            col=cen.x,
+        )
 
         self.coadd_obs.update_meta_data(self.observations.meta)
         self.coadd_obs.noise = coadd_noise_image.array
@@ -97,11 +98,18 @@ class CoaddImages():
 
             if self.coadd_obs is None:
                 self.coadd_obs = copy.deepcopy(obs)
-                self.canonical_center = (np.array(self.coadd_obs.image.shape)-1.0)/2.0
+                ny,nx = obs.image.shape
+                tim = galsim.ImageD(nx,ny)
+                self.canonical_center = tim.trueCenter()
 
-            xoffset, yoffset = obs.meta['offset_pixels']
+            offset_pixels = obs.meta['offset_pixels']
+            if offset_pixels is None:
+                xoffset, yoffset = 0.0, 0.0
+            else:
+                xoffset, yoffset = offset_pixels
+
             offset = galsim.PositionD(xoffset, yoffset)
-            image_center = galsim.PositionD(*self.canonical_center) + offset
+            image_center = self.canonical_center + offset
 
             # interplated image, shifted to center of the postage stamp
             wcs = galsim.TanWCS(affine=galsim.AffineTransform(obs.jacobian.dudcol, obs.jacobian.dudrow,
@@ -110,7 +118,7 @@ class CoaddImages():
                                 world_origin=self.sky_center)
             psf_wcs = galsim.TanWCS(affine=galsim.AffineTransform(obs.jacobian.dudcol, obs.jacobian.dudrow,
                                                                   obs.jacobian.dvdcol, obs.jacobian.dvdrow,
-                                                                  origin=galsim.PositionD(*self.canonical_center)),
+                                                                  origin=self.canonical_center),
                                     world_origin=self.sky_center)
 
             image = galsim.InterpolatedImage(
