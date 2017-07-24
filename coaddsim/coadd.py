@@ -79,6 +79,36 @@ class CoaddImages():
         self.coadd_obs.noise = coadd_noise_image.array
         return self.coadd_obs
 
+    def _set_coadd_obs(self):
+        """
+        base the coadd off the observation with largest
+        postage stamp
+        """
+        nxs=np.zeros(len(self.observations))
+        nys=nxs.copy()
+
+        for i,obs in enumerate(self.observations):
+            if self.select_obs(obs) is False:
+                continue
+            ny,nx = obs.image.shape
+            nxs[i] = nx
+            nys[i] = ny
+
+        #argx = nxs.argmin()
+        #argy = nys.argmin()
+        argx = nxs.argmax()
+        argy = nys.argmax()
+
+        assert argx==argy
+
+        nx = nxs[argx]
+        ny = nys[argy]
+
+        self.coadd_obs = copy.deepcopy(self.observations[argx])
+
+        tim = galsim.ImageD(nx,ny)
+        self.canonical_center = tim.trueCenter()
+
 
     def _add_obs(self):
 
@@ -87,20 +117,12 @@ class CoaddImages():
         self.vars = np.zeros(len(self.observations))
         self.noise_images = []
 
-        self.coadd_obs = None
+        self._set_coadd_obs()
 
         for i,obs in enumerate(self.observations):
 
             if self.select_obs(obs) is False:
                 continue
-
-            # currently using image size and scale of the first image for the coadd scale
-
-            if self.coadd_obs is None:
-                self.coadd_obs = copy.deepcopy(obs)
-                ny,nx = obs.image.shape
-                tim = galsim.ImageD(nx,ny)
-                self.canonical_center = tim.trueCenter()
 
             offset_pixels = obs.meta['offset_pixels']
             if offset_pixels is None:
@@ -112,14 +134,26 @@ class CoaddImages():
             image_center = self.canonical_center + offset
 
             # interplated image, shifted to center of the postage stamp
-            wcs = galsim.TanWCS(affine=galsim.AffineTransform(obs.jacobian.dudcol, obs.jacobian.dudrow,
-                                                              obs.jacobian.dvdcol, obs.jacobian.dvdrow,
-                                                              origin=image_center),
-                                world_origin=self.sky_center)
-            psf_wcs = galsim.TanWCS(affine=galsim.AffineTransform(obs.jacobian.dudcol, obs.jacobian.dudrow,
-                                                                  obs.jacobian.dvdcol, obs.jacobian.dvdrow,
-                                                                  origin=self.canonical_center),
-                                    world_origin=self.sky_center)
+            wcs = galsim.TanWCS(
+                affine=galsim.AffineTransform(
+                    obs.jacobian.dudcol,
+                    obs.jacobian.dudrow,
+                    obs.jacobian.dvdcol,
+                    obs.jacobian.dvdrow,
+                    origin=image_center,
+                ),
+                world_origin=self.sky_center,
+            )
+            psf_wcs = galsim.TanWCS(
+                affine=galsim.AffineTransform(
+                    obs.jacobian.dudcol,
+                    obs.jacobian.dudrow,
+                    obs.jacobian.dvdcol,
+                    obs.jacobian.dvdrow,
+                    origin=self.canonical_center,
+                ),
+                world_origin=self.sky_center,
+            )
 
             image = galsim.InterpolatedImage(
                 galsim.Image(obs.image,wcs=wcs),
@@ -132,7 +166,9 @@ class CoaddImages():
             )
 
             if self.target_psf is not None:
-                raise NotImplementedError("need to normalize psf correctly so weight maps are consistent")
+                raise NotImplementedError("need to normalize psf "
+                                          "correctly so weight maps "
+                                          "are consistent")
 
                 psf_inv = galsim.Deconvolve(psf)
                 matched_image = galsim.Convolve([image, psf_inv, self.target_psf])
