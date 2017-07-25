@@ -12,72 +12,113 @@ import copy
 
 class CoaddImages():
 
-    def __init__(self, observations, interp='lanczos15', target_psf=None):
+    def __init__(self, observations, interp='lanczos15', nointerp_psf=False, target_psf=None):
+        """
+        nointerp_psf=True means no interpolation
+        """
         self.observations = observations
         self.target_psf=target_psf
         self.interp = interp
+        self.nointerp_psf=nointerp_psf
+
         # use a nominal sky position
         self.sky_center = galsim.CelestialCoord(5*galsim.hours, -25*galsim.degrees)
 
         self._add_obs()
 
-    def get_mean_coadd(self, find_cen=False):
+    def get_mean_coadd(self):
         """
         perform a weight mean coaddition
-
-        parameters
-        ----------
-        find_cen: bool, optional
-            If True, set the jacobian center based on a fit
         """
 
-        weights = 1./self.vars
-        weights /= weights.sum()
+        self._set_coadded_image()
+        self._set_coadded_psf()
+        self._set_coadded_weight_map()
+        self._set_coadd_jacobian_cen()
 
-        coadd_obs = self.coadd_obs
-        wcs = coadd_obs.jacobian.get_galsim_wcs()
-        psf_wcs = coadd_obs.psf.jacobian.get_galsim_wcs()
+        self.coadd_obs.update_meta_data(self.observations.meta)
 
-        coadd = galsim.Sum([image*w for image,w in zip(self.images,weights)])
+        return self.coadd_obs
+    
+    def _set_coadded_weight_map(self):
+        """
+        coadd the noise image realizations and take var
+
+        also set the .noise attribute
+        """
+        coadd_obs=self.coadd_obs
+        weights=self.weights
+
+        weight_map = np.zeros(coadd_obs.weight.shape)
 
         ny,nx = coadd_obs.image.shape
-        psf_ny,psf_nx = coadd_obs.psf.image.shape
 
-        coadd_image = galsim.Image(nx, ny, wcs=wcs)
-        coadd.drawImage(image=coadd_image, method='no_pixel')
-
-        coadd_psf = galsim.Sum([psf*w for psf,w in zip(self.psfs,weights)])
-        coadd_psf_image = galsim.Image(psf_nx, psf_ny, wcs=psf_wcs)
-        coadd_psf.drawImage(image=coadd_psf_image, method='no_pixel')
-
-        coadd_obs.set_image(coadd_image.array)
-        coadd_obs.psf.set_image(coadd_psf_image.array)
-
-        weight_map = np.zeros(self.coadd_obs.weight.shape)
+        wcs = coadd_obs.jacobian.get_galsim_wcs()
 
         coadd_noise = galsim.Sum([image*w for image,w in zip(self.noise_images,weights)])
         coadd_noise_image = galsim.Image(nx, ny, wcs=wcs)
         coadd_noise.drawImage(image=coadd_noise_image, method='no_pixel')
 
         weight_map[:,:] = 1./np.var(coadd_noise_image.array)
-        self.coadd_obs.set_weight(weight_map)
+        coadd_obs.set_weight(weight_map)
 
+        coadd_obs.noise = coadd_noise_image.array
+
+    def _set_coadd_jacobian_cen(self):
+        """
+        set the center
+
+        currently only support the canonical center
+        """
         cen = self.canonical_center
-        if find_cen:
-            try:
-                moments = galsim.hsm.FindAdaptiveMom(galsim.Image(self.coadd_obs.image))
-                cen = moments.moments_centroid
-            except:
-                pass
-
         self.coadd_obs.jacobian.set_cen(
             row=cen.y,
             col=cen.x,
         )
 
-        self.coadd_obs.update_meta_data(self.observations.meta)
-        self.coadd_obs.noise = coadd_noise_image.array
-        return self.coadd_obs
+
+    def _set_coadded_image(self):
+        """
+        do the actual coadding, with appropriate weights
+        """
+        coadd_obs=self.coadd_obs
+        weights=self.weights
+
+        wcs = coadd_obs.jacobian.get_galsim_wcs()
+
+        coadd = galsim.Sum([image*w for image,w in zip(self.images,weights)])
+
+        ny,nx = coadd_obs.image.shape
+
+        coadd_image = galsim.Image(nx, ny, wcs=wcs)
+        coadd.drawImage(image=coadd_image, method='no_pixel')
+
+        coadd_obs.set_image(coadd_image.array)
+
+    def _set_coadded_psf(self):
+        """
+        set the coadd psf
+        """
+        coadd_obs=self.coadd_obs
+        weights=self.weights
+
+        if self.nointerp_psf:
+            coadd_psf_image = self.psfs[0].copy()
+            coadd_psf_image[:,:] = 0.0
+            for psf,w in zip(self.psfs, weights):
+                coadd_psf_image += w*psf
+
+        else:
+            psf_ny,psf_nx = coadd_obs.psf.image.shape
+            psf_wcs = coadd_obs.psf.jacobian.get_galsim_wcs()
+
+            coadd_psf = galsim.Sum([psf*w for psf,w in zip(self.psfs,weights)])
+            coadd_psf_image = galsim.Image(psf_nx, psf_ny, wcs=psf_wcs)
+            coadd_psf.drawImage(image=coadd_psf_image, method='no_pixel')
+
+            coadd_psf_image = coadd_psf_image.array
+
+        coadd_obs.psf.set_image(coadd_psf_image)
 
     def _set_coadd_obs(self):
         """
@@ -111,7 +152,11 @@ class CoaddImages():
 
 
     def _add_obs(self):
+        """
+        add observations as interpolated images
 
+        also keep track of psfs, variances, and noise realizations
+        """
         self.images = []
         self.psfs = []
         self.vars = np.zeros(len(self.observations))
@@ -160,10 +205,17 @@ class CoaddImages():
                 offset=offset,
                 x_interpolant=self.interp,
             )
-            psf = galsim.InterpolatedImage(
-                galsim.Image(obs.psf.image,wcs=psf_wcs),
-                x_interpolant=self.interp,
-            )
+
+            psf_image = obs.psf.image.copy()
+            psf_image /= psf_image.sum()
+
+            if self.nointerp_psf:
+                psf = psf_image
+            else:
+                psf = galsim.InterpolatedImage(
+                    galsim.Image(psf_image,wcs=psf_wcs),
+                    x_interpolant=self.interp,
+                )
 
             if self.target_psf is not None:
                 raise NotImplementedError("need to normalize psf "
@@ -177,7 +229,6 @@ class CoaddImages():
                 self.images.append(image)
 
             # normalize psf
-            obs.psf.image /= np.sum(obs.psf.image)
             self.psfs.append(psf)
 
             # assume variance is constant
@@ -195,6 +246,8 @@ class CoaddImages():
             )
             self.noise_images.append(noise_image)
 
+        self.weights = 1./self.vars
+        self.weights /= self.weights.sum()
 
     def select_obs(self, observation):
         return True
