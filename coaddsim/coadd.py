@@ -72,8 +72,8 @@ class CoaddImages():
         """
         cen = self.canonical_center
         self.coadd_obs.jacobian.set_cen(
-            row=cen.y,
-            col=cen.x,
+            row=cen.y-1,
+            col=cen.x-1,
         )
 
 
