@@ -239,7 +239,6 @@ class CoaddImages():
             psf=psf_obs,
         )
 
->>>>>>> origin/master
 
     def _add_obs(self):
         """
