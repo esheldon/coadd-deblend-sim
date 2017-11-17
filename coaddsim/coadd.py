@@ -12,17 +12,38 @@ import copy
 
 class CoaddImages():
 
-    def __init__(self, observations, interp='lanczos15', nointerp_psf=False, target_psf=None):
+    def __init__(self,
+                 observations,
+                 interp='lanczos15',
+                 nointerp_psf=False,
+                 flat_wcs=False,
+                 target_psf=None):
         """
-        nointerp_psf=True means no interpolation
+        parameters
+        -----------
+        observations: ngmix.ObsList
+            Set of observations to coadd
+        interp: string, optional
+            Interpolation to use
+        nointerp_psf: bool
+            If True, just add the PSF directly
+        flat_wcs: bool
+            If True, make the coadd have a flat wcs
+        target_psf: galsim object
+            If sent, the images are reconvolved
+            to this psf
         """
         self.observations = observations
         self.target_psf=target_psf
         self.interp = interp
         self.nointerp_psf=nointerp_psf
+        self.flat_wcs=flat_wcs
 
         # use a nominal sky position
-        self.sky_center = galsim.CelestialCoord(5*galsim.hours, -25*galsim.degrees)
+        self.sky_center = galsim.CelestialCoord(
+            5*galsim.hours,
+            -25*galsim.degrees,
+        )
 
         self._add_obs()
 
@@ -35,6 +56,7 @@ class CoaddImages():
         self._set_coadded_psf()
         self._set_coadded_weight_map()
         self._set_coadd_jacobian_cen()
+        self._set_coadd_psf_jacobian_cen()
 
         self.coadd_obs.update_meta_data(self.observations.meta)
 
@@ -49,14 +71,12 @@ class CoaddImages():
         coadd_obs=self.coadd_obs
         weights=self.weights
 
-        weight_map = np.zeros(coadd_obs.weight.shape)
-
-        ny,nx = coadd_obs.image.shape
+        weight_map = np.zeros( (self.ny, self.nx))
 
         wcs = coadd_obs.jacobian.get_galsim_wcs()
 
         coadd_noise = galsim.Sum([image*w for image,w in zip(self.noise_images,weights)])
-        coadd_noise_image = galsim.Image(nx, ny, wcs=wcs)
+        coadd_noise_image = galsim.Image(self.nx, self.ny, wcs=wcs)
         coadd_noise.drawImage(image=coadd_noise_image, method='no_pixel')
 
         weight_map[:,:] = 1./np.var(coadd_noise_image.array)
@@ -72,14 +92,28 @@ class CoaddImages():
         """
         cen = self.canonical_center
         self.coadd_obs.jacobian.set_cen(
-            row=cen.y,
-            col=cen.x,
+            row=cen.y-1,
+            col=cen.x-1,
         )
 
+    def _set_coadd_psf_jacobian_cen(self):
+        """
+        set the center
+
+        currently only support the canonical center
+        """
+        cen = self.psf_canonical_center
+        self.coadd_obs.psf.jacobian.set_cen(
+            row=cen.y-1,
+            col=cen.x-1,
+        )
 
     def _set_coadded_image(self):
         """
         do the actual coadding, with appropriate weights
+
+        wcs of final image is that of the *first*, since
+        the coadd obs is a copy of that
         """
         coadd_obs=self.coadd_obs
         weights=self.weights
@@ -88,9 +122,7 @@ class CoaddImages():
 
         coadd = galsim.Sum([image*w for image,w in zip(self.images,weights)])
 
-        ny,nx = coadd_obs.image.shape
-
-        coadd_image = galsim.Image(nx, ny, wcs=wcs)
+        coadd_image = galsim.Image(self.nx, self.ny, wcs=wcs)
         coadd.drawImage(image=coadd_image, method='no_pixel')
 
         coadd_obs.set_image(coadd_image.array)
@@ -98,6 +130,9 @@ class CoaddImages():
     def _set_coadded_psf(self):
         """
         set the coadd psf
+
+        wcs of final psf image is that of the *first*, since
+        the coadd obs is a copy of that
         """
         coadd_obs=self.coadd_obs
         weights=self.weights
@@ -109,11 +144,10 @@ class CoaddImages():
                 coadd_psf_image += w*psf
 
         else:
-            psf_ny,psf_nx = coadd_obs.psf.image.shape
             psf_wcs = coadd_obs.psf.jacobian.get_galsim_wcs()
 
             coadd_psf = galsim.Sum([psf*w for psf,w in zip(self.psfs,weights)])
-            coadd_psf_image = galsim.Image(psf_nx, psf_ny, wcs=psf_wcs)
+            coadd_psf_image = galsim.Image(self.psf_nx, self.psf_ny, wcs=psf_wcs)
             coadd_psf.drawImage(image=coadd_psf_image, method='no_pixel')
 
             coadd_psf_image = coadd_psf_image.array
@@ -125,8 +159,10 @@ class CoaddImages():
         base the coadd off the observation with largest
         postage stamp
         """
-        nxs=np.zeros(len(self.observations))
+        nxs=np.zeros(len(self.observations),dtype='i8')
         nys=nxs.copy()
+        pnxs=nxs.copy()
+        pnys=nxs.copy()
 
         for i,obs in enumerate(self.observations):
             if self.select_obs(obs) is False:
@@ -135,22 +171,75 @@ class CoaddImages():
             nxs[i] = nx
             nys[i] = ny
 
+            pny,pnx = obs.psf.image.shape
+            pnxs[i] = nx
+            pnys[i] = ny
+
         #argx = nxs.argmin()
         #argy = nys.argmin()
         argx = nxs.argmax()
         argy = nys.argmax()
+        pargx = pnxs.argmax()
+        pargy = pnys.argmax()
 
         assert argx==argy
 
         nx = nxs[argx]
         ny = nys[argy]
+        pnx = pnxs[pargx]
+        pny = pnys[pargy]
 
-        self.coadd_obs = copy.deepcopy(self.observations[argx])
+        #self.coadd_obs = copy.deepcopy(self.observations[argx])
 
         tim = galsim.ImageD(nx,ny)
+
         self.canonical_center = tim.center()#trueCenter()
         self.canonical_center = galsim.PositionD(self.canonical_center.x-1., self.canonical_center.y-1.)
         
+        ptim = galsim.ImageD(pnx,pny)
+        self.psf_canonical_center = ptim.trueCenter()
+
+        self.nx=nx
+        self.ny=ny
+        self.psf_nx=pnx
+        self.psf_ny=pny
+
+        tobs = self.observations[argx]
+
+        ojac = tobs.jacobian
+        opjac = tobs.psf.jacobian
+
+        if self.flat_wcs:
+            jac = ngmix.DiagonalJacobian(
+                row=ojac.get_row0(),
+                col=ojac.get_col0(),
+                scale=ojac.get_scale(),
+            )
+            pjac = ngmix.DiagonalJacobian(
+                row=opjac.get_row0(),
+                col=opjac.get_col0(),
+                scale=opjac.get_scale(),
+            )
+        else:
+            jac = ojac
+            pjac = opjac
+
+        psf_obs = ngmix.Observation(
+            ptim.array,
+            weight=ptim.array*0 + 1.0,
+            jacobian=pjac,
+            #jacobian=tobs.psf.get_jacobian(),
+        )
+
+        self.coadd_obs = ngmix.Observation(
+            tim.array,
+            weight=tim.array*0 + 1.0,
+            #jacobian=tobs.get_jacobian(),
+            jacobian=jac,
+            psf=psf_obs,
+        )
+
+>>>>>>> origin/master
 
     def _add_obs(self):
         """
@@ -174,29 +263,33 @@ class CoaddImages():
             if offset_pixels is None:
                 xoffset, yoffset = 0.0, 0.0
             else:
-                xoffset, yoffset = offset_pixels
+                xoffset = offset_pixels['col_offset']
+                yoffset = offset_pixels['row_offset']
 
             offset = galsim.PositionD(xoffset, yoffset)
             image_center = self.canonical_center + offset
 
             # interplated image, shifted to center of the postage stamp
+            jac = obs.jacobian
+
             wcs = galsim.TanWCS(
                 affine=galsim.AffineTransform(
-                    obs.jacobian.dudcol,
-                    obs.jacobian.dudrow,
-                    obs.jacobian.dvdcol,
-                    obs.jacobian.dvdrow,
+                    jac.dudcol,
+                    jac.dudrow,
+                    jac.dvdcol,
+                    jac.dvdrow,
                     origin=image_center,
                 ),
                 world_origin=self.sky_center,
             )
+            pjac = obs.psf.jacobian
             psf_wcs = galsim.TanWCS(
                 affine=galsim.AffineTransform(
-                    obs.jacobian.dudcol,
-                    obs.jacobian.dudrow,
-                    obs.jacobian.dvdcol,
-                    obs.jacobian.dvdrow,
-                    origin=self.canonical_center,
+                    pjac.dudcol,
+                    pjac.dudrow,
+                    pjac.dvdcol,
+                    pjac.dvdrow,
+                    origin=self.psf_canonical_center,
                 ),
                 world_origin=self.sky_center,
             )
