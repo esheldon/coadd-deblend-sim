@@ -17,7 +17,8 @@ class CoaddImages():
                  interp='lanczos15',
                  nointerp_psf=False,
                  flat_wcs=False,
-                 target_psf=None):
+                 target_psf=None,
+                 rng=None):
         """
         parameters
         -----------
@@ -32,12 +33,15 @@ class CoaddImages():
         target_psf: galsim object
             If sent, the images are reconvolved
             to this psf
+        rng: galsim random deviate, optional
+            for creating the noise images 
         """
         self.observations = observations
         self.target_psf=target_psf
         self.interp = interp
         self.nointerp_psf=nointerp_psf
         self.flat_wcs=flat_wcs
+        self.rng=rng
 
         # use a nominal sky position
         self.sky_center = galsim.CelestialCoord(
@@ -328,7 +332,7 @@ class CoaddImages():
 
             # create noise image given the variance
             noise = galsim.Image(*obs.image.shape,wcs=wcs)
-            noise.addNoise(galsim.GaussianNoise(sigma=np.sqrt(var)))
+            noise.addNoise(galsim.GaussianNoise(rng=self.rng, sigma=np.sqrt(var)))
 
             noise_image = galsim.InterpolatedImage(
                 noise,
