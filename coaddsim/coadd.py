@@ -223,8 +223,8 @@ class CoaddImages():
                 scale=opjac.get_scale(),
             )
         else:
-            jac = ojac
-            pjac = opjac
+            jac = ojac.copy()
+            pjac = opjac.copy()
 
         psf_obs = ngmix.Observation(
             ptim.array,
