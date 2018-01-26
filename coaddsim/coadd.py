@@ -204,7 +204,7 @@ class CoaddImages():
         self.psf_nx=pnx
         self.psf_ny=pny
 
-        tobs = self.observations[argx]
+        tobs = copy.deepcopy(self.observations[argx])
 
         ojac = tobs.jacobian
         opjac = tobs.psf.jacobian
