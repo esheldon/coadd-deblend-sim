@@ -17,7 +17,9 @@ class CoaddImages():
                  interp='lanczos15',
                  nointerp_psf=False,
                  flat_wcs=False,
-                 target_psf=None):
+                 target_psf=None,
+                 noise_n=48
+                     ):
         """
         parameters
         -----------
@@ -38,6 +40,7 @@ class CoaddImages():
         self.interp = interp
         self.nointerp_psf=nointerp_psf
         self.flat_wcs=flat_wcs
+        self.noise_n=noise_n
 
         # use a nominal sky position
         self.sky_center = galsim.CelestialCoord(
@@ -329,7 +332,7 @@ class CoaddImages():
             self.vars[i] = var
 
             # create noise image given the variance
-            noise = galsim.Image(*obs.image.shape,wcs=wcs)
+            noise = galsim.Image(self.noise_n, self.noise_n, wcs=wcs)
             noise.addNoise(galsim.GaussianNoise(sigma=np.sqrt(var)))
 
             noise_image = galsim.InterpolatedImage(
