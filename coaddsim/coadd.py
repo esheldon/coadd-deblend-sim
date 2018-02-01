@@ -18,6 +18,7 @@ class CoaddImages():
                  nointerp_psf=False,
                  flat_wcs=False,
                  target_psf=None,
+                 use_noise_image=False,
                  rng=None):
         """
         parameters
@@ -41,6 +42,7 @@ class CoaddImages():
         self.interp = interp
         self.nointerp_psf=nointerp_psf
         self.flat_wcs=flat_wcs
+        self.use_noise_image=use_noise_image
         self.rng=rng
 
         # use a nominal sky position
@@ -330,15 +332,24 @@ class CoaddImages():
             var = 1./obs.weight.max()
             self.vars[i] = var
 
-            # create noise image given the variance
-            noise = galsim.Image(*obs.image.shape,wcs=wcs)
-            noise.addNoise(galsim.GaussianNoise(rng=self.rng, sigma=np.sqrt(var)))
+            if self.use_noise_image:
+                # use input noise image
+                noise_image = galsim.InterpolatedImage(
+                    galsim.Image(obs.noise,wcs=wcs),
+                    offset=offset,
+                    x_interpolant=self.interp,
+                )
 
-            noise_image = galsim.InterpolatedImage(
-                noise,
-                offset=offset,
-                x_interpolant=self.interp,
-            )
+            else:
+                # create noise image given the variance
+                noise = galsim.Image(*obs.image.shape,wcs=wcs)
+                noise.addNoise(galsim.GaussianNoise(rng=self.rng, sigma=np.sqrt(var)))
+
+                noise_image = galsim.InterpolatedImage(
+                    noise,
+                    offset=offset,
+                    x_interpolant=self.interp,
+                )
             self.noise_images.append(noise_image)
 
         self.weights = 1./self.vars
