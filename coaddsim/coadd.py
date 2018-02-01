@@ -176,8 +176,8 @@ class CoaddImages():
             nys[i] = ny
 
             pny,pnx = obs.psf.image.shape
-            pnxs[i] = nx
-            pnys[i] = ny
+            pnxs[i] = pnx
+            pnys[i] = pny
 
         #argx = nxs.argmin()
         #argy = nys.argmin()
