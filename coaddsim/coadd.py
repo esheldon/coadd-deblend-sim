@@ -53,7 +53,7 @@ class CoaddImages():
 
         self._add_obs()
 
-    def get_mean_coadd(self):
+    def get_mean_coadd(self, dims=None):
         """
         perform a weight mean coaddition
         """
@@ -66,8 +66,65 @@ class CoaddImages():
 
         self.coadd_obs.update_meta_data(self.observations.meta)
 
-        return self.coadd_obs
+        if dims is not None:
+            return self._get_trimmed_coadd_obs(dims)
+        else:
+            return self.coadd_obs
     
+    def _get_trimmed_coadd_obs(self, dims):
+
+        coadd_obs = self.coadd_obs
+        dims = np.array(dims, dtype='i4')
+        cdims = np.array(coadd_obs.image.shape, dtype='i4')
+
+        if dims[0]==cdims[0] and dims[1]==cdims[1]:
+            return coadd_obs
+
+        if dims[0] > cdims[0] or dims[1] > cdims[1]:
+            err="requested dims %s must be <= input dims %s"
+            raise ValueError(err % (dims, cdims))
+
+        ntocut = cdims - dims
+        if (ntocut[0] % 2) != 0 or (ntocut[1] % 2) != 0:
+            err="difference of dims should be even, got" % ntocut
+            raise ValueError(ntocut)
+
+        start = ntocut // 2
+
+        subim = coadd_obs.image[
+            start[0]:start[0]+dims[0],
+            start[1]:start[1]+dims[1]
+        ]
+        subwt = coadd_obs.weight[
+            start[0]:start[0]+dims[0],
+            start[1]:start[1]+dims[1]
+        ]
+        subnoise = coadd_obs.noise[
+            start[0]:start[0]+dims[0],
+            start[1]:start[1]+dims[1]
+        ]
+        # a copy
+        subjac = coadd_obs.jacobian
+        row,col = subjac.get_cen()
+        row -= start[0]
+        col -= start[1]
+        subjac.set_cen(row=row,col=col)
+
+        #print("subim.shape",subim.shape)
+        #print("subwt.shape",subim.shape)
+        #print("oldjac:",coadd_obs.jacobian)
+        #print("subjac:",subjac)
+        newobs = ngmix.Observation(
+            subim,
+            weight=subwt,
+            jacobian=subjac,
+            psf=coadd_obs.psf,
+        )
+        newobs.noise = subnoise
+
+        return newobs
+
+
     def _set_coadded_weight_map(self):
         """
         coadd the noise image realizations and take var
