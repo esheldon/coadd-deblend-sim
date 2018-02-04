@@ -271,6 +271,7 @@ class CoaddImages():
 
             offset = galsim.PositionD(xoffset, yoffset)
             image_center = self.canonical_center + offset
+            psf_image_center = self.psf_canonical_center + offset
 
             # interplated image, shifted to center of the postage stamp
             jac = obs.jacobian
@@ -311,6 +312,7 @@ class CoaddImages():
             else:
                 psf = galsim.InterpolatedImage(
                     galsim.Image(psf_image,wcs=psf_wcs),
+                    offset=offset,
                     x_interpolant=self.interp,
                 )
 
