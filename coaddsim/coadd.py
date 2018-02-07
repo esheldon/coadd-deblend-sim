@@ -129,7 +129,12 @@ class CoaddImages():
         coadd = galsim.Sum([image*w for image,w in zip(self.images,weights)])
 
         coadd_image = galsim.Image(self.nx, self.ny, wcs=wcs)
-        coadd.drawImage(image=coadd_image, method='no_pixel')
+        offset=np.random.uniform(size=2, low=-0.5, high=0.5)
+        coadd.drawImage(
+            image=coadd_image,
+            method='no_pixel',
+            offset=offset,
+        )
 
         coadd_obs.set_image(coadd_image.array)
 
