@@ -243,6 +243,14 @@ class CoaddImages():
             psf=psf_obs,
         )
 
+    def _get_offsets(self, offset_pixels):
+        if offset_pixels is None:
+            xoffset, yoffset = 0.0, 0.0
+        else:
+            xoffset = offset_pixels['col_offset']
+            yoffset = offset_pixels['row_offset']
+
+        return galsim.PositionD(xoffset, yoffset)
 
     def _add_obs(self):
         """
@@ -262,16 +270,10 @@ class CoaddImages():
             if self.select_obs(obs) is False:
                 continue
 
-            offset_pixels = obs.meta['offset_pixels']
-            if offset_pixels is None:
-                xoffset, yoffset = 0.0, 0.0
-            else:
-                xoffset = offset_pixels['col_offset']
-                yoffset = offset_pixels['row_offset']
-
-            offset = galsim.PositionD(xoffset, yoffset)
+            offset = self._get_offsets(obs.meta['offset_pixels'])
+            psf_offset = self._get_offsets(obs.meta['psf_offset_pixels'])
             image_center = self.canonical_center + offset
-            psf_image_center = self.psf_canonical_center + offset
+            psf_image_center = self.psf_canonical_center + psf_offset
 
             # interplated image, shifted to center of the postage stamp
             jac = obs.jacobian
@@ -293,7 +295,7 @@ class CoaddImages():
                     pjac.dudrow,
                     pjac.dvdcol,
                     pjac.dvdrow,
-                    origin=self.psf_canonical_center,
+                    origin=psf_image_center,
                 ),
                 world_origin=self.sky_center,
             )
@@ -312,7 +314,7 @@ class CoaddImages():
             else:
                 psf = galsim.InterpolatedImage(
                     galsim.Image(psf_image,wcs=psf_wcs),
-                    offset=offset,
+                    offset=psf_offset,
                     x_interpolant=self.interp,
                 )
 
