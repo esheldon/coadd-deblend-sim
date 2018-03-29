@@ -14,7 +14,7 @@ class CoaddImages():
 
     def __init__(self,
                  observations,
-                 interp='lanczos15',
+                 interp='lanczos3',
                  nointerp_psf=False,
                  flat_wcs=False,
                  target_psf=None,
