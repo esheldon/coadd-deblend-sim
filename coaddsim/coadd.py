@@ -204,10 +204,10 @@ class CoaddImages():
         #self.coadd_obs = copy.deepcopy(self.observations[argx])
 
         tim = galsim.ImageD(nx,ny)
-        self.canonical_center = tim.trueCenter()
+        self.canonical_center = tim.true_center
 
         ptim = galsim.ImageD(pnx,pny)
-        self.psf_canonical_center = ptim.trueCenter()
+        self.psf_canonical_center = ptim.true_center
 
         self.nx=nx
         self.ny=ny
